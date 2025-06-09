@@ -18,6 +18,7 @@ import {
   GameRoomData,
   PendingInvite 
 } from '../types/game.types';
+import { GameService } from '../game/game.service';
 
 @WebSocketGateway({
   cors: {
@@ -34,6 +35,8 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private gameRooms = new Map<string, GameRoom>();
   private onlinePlayers = new Map<string, OnlinePlayer>();
   private pendingInvites = new Map<string, PendingInvite>();
+
+  constructor(private readonly gameService: GameService) {}
 
   async handleConnection(client: Socket) {
     try {
@@ -170,13 +173,16 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
       const roomId = uuidv4();
       const newRoom: GameRoom = {
         roomId,
-        player1Id: player1.id,    // Store ID instead of full player object
-        player2Id: player2.id,    // Store ID instead of full player object
+        player1Id: player1.id,
+        player2Id: player2.id,
         status: 'waiting'
       };
       
       this.gameRooms.set(roomId, newRoom);
       this.logger.log(`Room created: ${roomId} with players ${player1.username} and ${player2.username}`);
+
+      // Create game state
+      this.gameService.createGame(roomId, player1.id, player2.id);
 
       // Create room data for frontend with full player objects
       const roomData: GameRoomData = {

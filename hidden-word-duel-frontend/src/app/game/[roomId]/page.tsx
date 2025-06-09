@@ -1,16 +1,24 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { createSocket, OnlinePlayer, GameRoom } from '@/lib/socket';
+import { useParams, useRouter } from 'next/navigation';
+import { createSocket } from '@/lib/socket';
 
 export default function GameRoom() {
   const params = useParams();
-  const [gameRoom, setGameRoom] = useState<GameRoom | null>(null);
+  const router = useRouter();
+  const roomId = params?.roomId as string;
+  const [gameRoom, setGameRoom] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!roomId) {
+      setError('Room ID not found');
+      setLoading(false);
+      return;
+    }
+
     const playerId = localStorage.getItem('playerId');
     if (!playerId) {
       setError('Player ID not found');
@@ -21,28 +29,19 @@ export default function GameRoom() {
     const socket = createSocket(playerId);
 
     socket.on('connect', () => {
-      console.log('Connecting to room:', params.roomId);
-      // Use joinGameRoom instead of joinRoom
+      console.log('Connecting to room:', roomId);
       socket.emit('joinGameRoom', { 
-        roomId: params.roomId as string,
+        roomId,
         playerId 
       });
     });
 
-    // Listen for room joined event
     socket.on('roomJoined', (data) => {
       console.log('Room joined:', data.room);
       setGameRoom(data.room);
       setLoading(false);
     });
 
-    // Listen for player joined event
-    socket.on('playerJoined', (data) => {
-      console.log('Player joined:', data);
-      setGameRoom(data.room);
-    });
-
-    // Listen for game ready event
     socket.on('gameReady', (data) => {
       console.log('Game ready:', data);
       setGameRoom(data.room);
@@ -59,7 +58,15 @@ export default function GameRoom() {
     return () => {
       socket.disconnect();
     };
-  }, [params.roomId]);
+  }, [roomId]);
+
+  const handleStartGame = () => {
+    const playerId = localStorage.getItem('playerId');
+    const socket = createSocket(playerId!);
+    
+    socket.emit('startGame', { roomId });
+    router.push(`/game/${roomId}/play`);
+  };
 
   if (loading) {
     return (
@@ -91,7 +98,7 @@ export default function GameRoom() {
                 <div className="flex items-center justify-between p-3 bg-gray-700 rounded-md">
                   <div className="flex items-center space-x-3">
                     <span className="w-3 h-3 bg-green-500 rounded-full"></span>
-                    <span>{gameRoom.player1.username}</span>
+                    <span>{gameRoom.player1.username || `Player_${gameRoom.player1.id.slice(0, 4)}`}</span>
                   </div>
                   <span className="text-sm text-blue-400">Player 1</span>
                 </div>
@@ -100,14 +107,9 @@ export default function GameRoom() {
                 <div className="flex items-center justify-between p-3 bg-gray-700 rounded-md">
                   <div className="flex items-center space-x-3">
                     <span className="w-3 h-3 bg-green-500 rounded-full"></span>
-                    <span>{gameRoom.player2.username}</span>
+                    <span>{gameRoom.player2.username || `Player_${gameRoom.player2.id.slice(0, 4)}`}</span>
                   </div>
                   <span className="text-sm text-blue-400">Player 2</span>
-                </div>
-              )}
-              {(!gameRoom?.player1 || !gameRoom?.player2) && (
-                <div className="text-yellow-400 text-center p-3">
-                  Waiting for other player to join...
                 </div>
               )}
             </div>
@@ -118,7 +120,24 @@ export default function GameRoom() {
             <h2 className="text-xl font-semibold mb-4">Game Status</h2>
             <div className="text-center">
               {gameRoom?.status === 'ready' ? (
-                <p className="text-green-400">Game ready to start!</p>
+                <div className="space-y-4">
+                  <div className="bg-gray-700 p-4 rounded-lg text-left">
+                    <h3 className="text-lg font-medium mb-3">Game Instructions:</h3>
+                    <ul className="list-disc list-inside space-y-2 text-gray-300">
+                      <li>A random word will be selected and shown as hidden tiles</li>
+                      <li>Every 5 seconds, a new letter will be revealed</li>
+                      <li>Both players can submit one guess for the full word</li>
+                      <li>Game ends when someone guesses correctly or all letters are revealed</li>
+                      <li>If both players guess correctly at the same time, it's a draw!</li>
+                    </ul>
+                  </div>
+                  <button 
+                    onClick={handleStartGame}
+                    className="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200"
+                  >
+                    Start Game
+                  </button>
+                </div>
               ) : (
                 <p className="text-yellow-400">Waiting for all players...</p>
               )}

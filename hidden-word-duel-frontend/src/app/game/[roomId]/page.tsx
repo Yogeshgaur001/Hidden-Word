@@ -26,15 +26,23 @@ export default function GameRoom() {
       return;
     }
 
+    // Create or get existing socket
     const socket = createSocket(playerId);
 
-    socket.on('connect', () => {
+    // Ensure we're connected before joining
+    const joinRoom = () => {
       console.log('Connecting to room:', roomId);
       socket.emit('joinGameRoom', { 
         roomId,
         playerId 
       });
-    });
+    };
+
+    if (socket.connected) {
+      joinRoom();
+    } else {
+      socket.on('connect', joinRoom);
+    }
 
     socket.on('roomJoined', (data) => {
       console.log('Room joined:', data.room);
@@ -47,25 +55,32 @@ export default function GameRoom() {
       setGameRoom(data.room);
     });
 
+    socket.on('gameStarted', (data) => {
+      console.log('Game started:', data);
+      router.push(`/game/${roomId}/play`);
+    });
+
     socket.on('roomError', (data) => {
       console.error('Room error:', data.message);
       setError(data.message);
       setLoading(false);
     });
 
-    socket.connect();
-
     return () => {
-      socket.disconnect();
+      socket.off('connect', joinRoom);
+      socket.off('roomJoined');
+      socket.off('gameReady');
+      socket.off('gameStarted');
+      socket.off('roomError');
     };
-  }, [roomId]);
+  }, [roomId, router]);
 
   const handleStartGame = () => {
     const playerId = localStorage.getItem('playerId');
-    const socket = createSocket(playerId!);
-    
+    if (!playerId) return;
+
+    const socket = createSocket(playerId);
     socket.emit('startGame', { roomId });
-    router.push(`/game/${roomId}/play`);
   };
 
   if (loading) {

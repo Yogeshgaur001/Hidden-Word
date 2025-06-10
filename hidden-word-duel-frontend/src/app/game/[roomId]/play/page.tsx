@@ -4,15 +4,26 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { createSocket } from '@/lib/socket';
 
-interface GameState {
-  word: string;
+interface PlayerState {
   revealedIndices: number[];
   guessedWords: {
-    [playerId: string]: string;
+    word: string;
+    correct: boolean;
+    timestamp: number;
+  }[];
+  completionTime?: number;
+  roundsWon: number;
+}
+
+interface GameState {
+  word: string;
+  players: {
+    [playerId: string]: PlayerState;
   };
+  remainingRounds: number;
+  currentRound: number;
   winner: string | null;
   isDraw: boolean;
-  currentTick: number;
   status: 'waiting' | 'playing' | 'finished';
 }
 
@@ -23,15 +34,17 @@ export default function GamePlay() {
   const [error, setError] = useState<string | null>(null);
   const [gameState, setGameState] = useState<GameState>({
     word: '',
-    revealedIndices: [],
-    guessedWords: {},
+    players: {},
+    remainingRounds: 5,
+    currentRound: 1,
     winner: null,
     isDraw: false,
-    currentTick: 0,
     status: 'waiting'
   });
   const [guess, setGuess] = useState('');
-  const [timeUntilNextReveal, setTimeUntilNextReveal] = useState(5);
+  const [remainingTime, setRemainingTime] = useState(10);
+  const [lastGuessCorrect, setLastGuessCorrect] = useState<boolean | null>(null);
+  const [playerId] = useState(() => localStorage.getItem('playerId'));
 
   useEffect(() => {
     if (!roomId) {
@@ -40,7 +53,6 @@ export default function GamePlay() {
       return;
     }
 
-    const playerId = localStorage.getItem('playerId');
     if (!playerId) {
       setError('Player ID not found');
       setLoading(false);
@@ -49,49 +61,53 @@ export default function GamePlay() {
 
     const socket = createSocket(playerId);
 
-    socket.on('connect', () => {
-      console.log('Connected to game:', roomId);
-      socket.emit('joinGame', { 
-        roomId,
-        playerId 
-      });
-    });
+    const joinGame = () => {
+      console.log('Joining game:', roomId);
+      socket.emit('joinGame', { roomId, playerId });
+    };
 
-    socket.on('gameStarted', (data: { word: string }) => {
-      setGameState(prev => ({
-        ...prev,
-        word: data.word,
-        status: 'playing'
-      }));
+    if (socket.connected) {
+      joinGame();
+    } else {
+      socket.on('connect', joinGame);
+    }
+
+    socket.on('gameStarted', (data: GameState) => {
+      setGameState(data);
+      setRemainingTime(10);
       setLoading(false);
     });
 
-    socket.on('letterRevealed', (data: { index: number }) => {
+    socket.on('roundUpdate', (data: { remainingTime: number; currentRound: number; remainingRounds: number }) => {
+      setRemainingTime(Math.ceil(data.remainingTime / 1000));
       setGameState(prev => ({
         ...prev,
-        revealedIndices: [...prev.revealedIndices, data.index],
-        currentTick: prev.currentTick + 1
+        currentRound: data.currentRound,
+        remainingRounds: data.remainingRounds
       }));
-      setTimeUntilNextReveal(5);
     });
 
-    socket.on('guessSubmitted', (data: { playerId: string, guess: string }) => {
+    socket.on('wordGuessed', (data: { playerId: string; word: string; correct: boolean }) => {
       setGameState(prev => ({
         ...prev,
-        guessedWords: {
-          ...prev.guessedWords,
-          [data.playerId]: data.guess
+        players: {
+          ...prev.players,
+          [data.playerId]: {
+            ...prev.players[data.playerId],
+            guessedWords: [
+              ...prev.players[data.playerId].guessedWords,
+              { word: data.word, correct: data.correct, timestamp: Date.now() }
+            ]
+          }
         }
       }));
+      if (data.playerId === playerId) {
+        setLastGuessCorrect(data.correct);
+      }
     });
 
-    socket.on('gameEnded', (data: { winner: string | null, isDraw: boolean }) => {
-      setGameState(prev => ({
-        ...prev,
-        winner: data.winner,
-        isDraw: data.isDraw,
-        status: 'finished'
-      }));
+    socket.on('gameEnded', (data: GameState) => {
+      setGameState(data);
     });
 
     socket.on('gameError', (data) => {
@@ -100,36 +116,32 @@ export default function GamePlay() {
       setLoading(false);
     });
 
-    socket.connect();
-
-    // Timer for countdown
-    const timer = setInterval(() => {
-      setTimeUntilNextReveal(prev => Math.max(0, prev - 1));
-    }, 1000);
-
     return () => {
-      socket.disconnect();
-      clearInterval(timer);
+      socket.off('connect', joinGame);
+      socket.off('gameStarted');
+      socket.off('roundUpdate');
+      socket.off('wordGuessed');
+      socket.off('gameEnded');
+      socket.off('gameError');
     };
-  }, [roomId]);
+  }, [roomId, playerId]);
 
-  const handleGuessSubmit = (e: React.FormEvent) => {
+  const handleWordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const playerId = localStorage.getItem('playerId');
     if (!playerId || !guess.trim()) return;
 
     const socket = createSocket(playerId);
-    socket.emit('submitGuess', {
+    socket.emit('guessWord', {
       roomId,
-      playerId,
-      guess: guess.trim().toLowerCase()
+      word: guess.trim()
     });
     setGuess('');
+    setLastGuessCorrect(null);
   };
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white">
+      <div className="flex min-h-screen items-center justify-center bg-black text-yellow-400">
         <div className="text-2xl">Loading game...</div>
       </div>
     );
@@ -137,81 +149,141 @@ export default function GamePlay() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white">
+      <div className="flex min-h-screen items-center justify-center bg-black text-yellow-400">
         <div className="text-red-500">{error}</div>
       </div>
     );
   }
 
+  const playerState = gameState.players[playerId!];
+  const otherPlayerId = Object.keys(gameState.players).find(id => id !== playerId);
+  const otherPlayerState = otherPlayerId ? gameState.players[otherPlayerId] : null;
+
   return (
-    <main className="flex min-h-screen flex-col items-center p-12 md:p-24 bg-gray-900 text-white">
-      <div className="w-full max-w-5xl">
-        <h1 className="text-3xl font-bold mb-8">Hidden Word Duel</h1>
-        
-        <div className="grid grid-cols-1 gap-8">
-          {/* Game Board */}
-          <div className="bg-gray-800 p-6 rounded-lg">
-            <div className="text-center space-y-6">
-              {/* Timer */}
-              <div className="text-xl font-semibold">
-                Next reveal in: <span className="text-yellow-400">{timeUntilNextReveal}s</span>
-              </div>
+    <main className="flex min-h-screen flex-col items-center justify-start p-8 bg-black text-yellow-400">
+      {/* Title */}
+      <div className="w-full max-w-4xl mb-12">
+        <h1 className="text-5xl font-bold text-center mb-4">CAN YOU GUESS</h1>
+        <h1 className="text-5xl font-bold text-center">THE WORD?</h1>
+      </div>
 
-              {/* Word Display */}
-              <div>
-                <h2 className="text-xl font-semibold mb-4">Hidden Word</h2>
-                <div className="flex justify-center gap-2">
-                  {gameState.word.split('').map((letter, index) => (
-                    <div 
-                      key={index}
-                      className="w-12 h-12 border-2 border-gray-600 rounded flex items-center justify-center text-2xl"
-                    >
-                      {gameState.revealedIndices.includes(index) ? letter : '_'}
-                    </div>
-                  ))}
-                </div>
-              </div>
+      {/* Game Info */}
+      <div className="w-full max-w-4xl mb-8 flex justify-between items-center">
+        <div className="text-xl">
+          Round: <span className="font-bold">{gameState.currentRound}/5</span>
+        </div>
+        <div className="text-xl">
+          Time: <span className="font-bold">{remainingTime}s</span>
+        </div>
+        <div className="text-xl">
+          Chances: <span className="font-bold">{gameState.remainingRounds}</span>
+        </div>
+      </div>
 
-              {/* Guess Input */}
-              {gameState.status === 'playing' && (
-                <form onSubmit={handleGuessSubmit} className="space-y-4">
-                  <div>
-                    <input
-                      type="text"
-                      value={guess}
-                      onChange={(e) => setGuess(e.target.value)}
-                      placeholder="Enter your guess..."
-                      className="w-full max-w-md px-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors duration-200"
-                  >
-                    Submit Guess
-                  </button>
-                </form>
+      {/* Heartbeat Line */}
+      <div className="w-full max-w-4xl mb-16 relative">
+        <div className="h-px bg-yellow-400 w-full"></div>
+        <div className="absolute right-0 -top-4 w-16">
+          <svg viewBox="0 0 100 100" className="w-full h-full fill-yellow-400">
+            <path d="M0 50 L20 50 L30 20 L40 80 L50 50 L60 50 L70 40 L80 60 L90 50 L100 50" 
+                  stroke="currentColor" 
+                  strokeWidth="2" 
+                  fill="none" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Word Display */}
+      <div className="w-full max-w-4xl mb-16">
+        <div className="grid grid-flow-col gap-4 justify-center">
+          {gameState.word.split('').map((letter, index) => (
+            <div key={index} className="relative">
+              <div className="w-24 h-24 flex items-center justify-center">
+                <span className="text-7xl font-bold">
+                  {playerState?.revealedIndices.includes(index) ? letter : '_'}
+                </span>
+              </div>
+              <div className="absolute bottom-0 w-full h-1 bg-yellow-400"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Game Controls */}
+      {gameState.status === 'playing' && (
+        <div className="w-full max-w-4xl">
+          <form onSubmit={handleWordSubmit} className="flex gap-4 justify-center">
+            <input
+              type="text"
+              value={guess}
+              onChange={(e) => setGuess(e.target.value)}
+              placeholder="Enter your guess..."
+              className="px-6 py-3 w-96 text-xl bg-transparent border-2 border-yellow-400 rounded-lg text-yellow-400 placeholder-yellow-400/50 focus:outline-none focus:border-yellow-300"
+            />
+            <button
+              type="submit"
+              className="px-8 py-3 bg-yellow-400 text-black text-xl font-bold rounded-lg hover:bg-yellow-300 transition-colors"
+            >
+              Guess
+            </button>
+          </form>
+
+          {/* Feedback Message */}
+          {lastGuessCorrect !== null && (
+            <div className={`text-center mt-4 text-xl ${lastGuessCorrect ? 'text-green-400' : 'text-red-400'}`}>
+              {lastGuessCorrect ? 'Correct!' : 'Try again!'}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Game End State */}
+      {gameState.status === 'finished' && (
+        <div className="text-center mt-8">
+          <h2 className="text-3xl font-bold mb-4">
+            {gameState.isDraw ? "It's a Draw!" : gameState.winner === playerId ? 'You Won!' : 'Game Over'}
+          </h2>
+          <p className="text-xl mb-4">The word was: {gameState.word}</p>
+          <div className="grid grid-cols-2 gap-8 mt-8">
+            <div>
+              <h3 className="text-2xl font-bold mb-2">Your Score</h3>
+              <p>Rounds Won: {playerState?.roundsWon || 0}</p>
+              {playerState?.completionTime && (
+                <p>Completion Time: {(playerState.completionTime / 1000).toFixed(1)}s</p>
               )}
-
-              {/* Game End State */}
-              {gameState.status === 'finished' && (
-                <div className="mt-8 p-4 bg-gray-700 rounded-lg">
-                  {gameState.isDraw ? (
-                    <p className="text-xl font-bold text-yellow-400">It's a draw!</p>
-                  ) : gameState.winner ? (
-                    <p className="text-xl font-bold text-green-400">
-                      {gameState.winner === localStorage.getItem('playerId')
-                        ? 'You won!'
-                        : 'Your opponent won!'}
-                    </p>
-                  ) : (
-                    <p className="text-xl font-bold text-red-400">Game Over - No winner</p>
-                  )}
-                  <p className="mt-2 text-gray-300">The word was: {gameState.word}</p>
-                </div>
+            </div>
+            <div>
+              <h3 className="text-2xl font-bold mb-2">Opponent's Score</h3>
+              <p>Rounds Won: {otherPlayerState?.roundsWon || 0}</p>
+              {otherPlayerState?.completionTime && (
+                <p>Completion Time: {(otherPlayerState.completionTime / 1000).toFixed(1)}s</p>
               )}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Previous Guesses */}
+      <div className="w-full max-w-4xl mt-12">
+        <h2 className="text-2xl font-bold mb-4">Previous Guesses:</h2>
+        <div className="grid gap-3">
+          {Object.entries(gameState.players).map(([pid, state]) => (
+            <div key={pid} className="flex items-center justify-between p-4 border border-yellow-400/30 rounded-lg">
+              <span className="text-lg">{pid === playerId ? 'You' : 'Opponent'}</span>
+              <div className="flex gap-2">
+                {state.guessedWords.map((guess, index) => (
+                  <span 
+                    key={index} 
+                    className={`text-lg font-mono px-2 py-1 rounded ${
+                      guess.correct ? 'bg-green-400/20 text-green-400' : 'bg-red-400/20 text-red-400'
+                    }`}
+                  >
+                    {guess.word}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </main>

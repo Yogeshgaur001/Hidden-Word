@@ -28,8 +28,12 @@ interface ClientToServerEvents {
 let socket: Socket | null = null;
 
 export const createSocket = (playerId: string): Socket => {
-  if (socket) {
+  if (socket?.connected) {
     return socket;
+  }
+
+  if (socket) {
+    socket.disconnect();
   }
 
   socket = io('http://localhost:3000', {
@@ -42,7 +46,9 @@ export const createSocket = (playerId: string): Socket => {
 
   socket.on('connect', () => {
     console.log('Connected to server');
-    socket?.emit('playerConnected', { id: playerId });
+    // Always send player data on connect/reconnect
+    const username = `Player_${playerId.slice(0, 4)}`;
+    socket?.emit('playerConnected', { id: playerId, username });
   });
 
   socket.on('connect_error', (error) => {

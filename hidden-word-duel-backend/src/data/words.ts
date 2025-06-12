@@ -44,7 +44,10 @@ export const words = [
   'URBAN',
   'VALUE',
   'WORLD',
-  'XYLON',
   'YIELD',
-  'ZESTY'
+  'BRAIN',
+  'CLOCK',
+  'DRINK',
+  'FAIRY',
+  'GREEN'
 ]; 

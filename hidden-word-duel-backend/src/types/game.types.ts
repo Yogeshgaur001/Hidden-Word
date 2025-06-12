@@ -1,3 +1,5 @@
+// src/types/game.types.ts (FINAL)
+
 export interface OnlinePlayer {
   id: string;
   username: string;
@@ -8,7 +10,7 @@ export interface GameRoom {
   player1Id: string;
   player2Id: string;
   status: 'waiting' | 'ready' | 'playing';
-  initiator?: string;
+  hostId: string; // The old 'initiator' is replaced by hostId for consistency
 }
 
 export interface GameRoomData {
@@ -16,7 +18,7 @@ export interface GameRoomData {
   player1: OnlinePlayer;
   player2: OnlinePlayer;
   status: 'waiting' | 'ready' | 'playing';
-  initiator?: string;
+  hostId: string; // <-- THIS IS THE FIX. We are adding the required property.
   instructions?: string[];
 }
 

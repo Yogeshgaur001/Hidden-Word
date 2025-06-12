@@ -22,4 +22,10 @@ export class Match {
 
   @Column()
   status: string;
+
+  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  createdAt: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  finishedAt: Date;
 }

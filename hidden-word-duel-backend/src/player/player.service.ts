@@ -52,4 +52,16 @@ export class PlayerService {
 
     return this.playerRepository.save(player);
   }
+
+  async update(id: string, data: Partial<Player>): Promise<Player | null> {
+    const player = await this.findOne(id);
+    if (!player) return null;
+
+    // Update allowed fields
+    if (data.username) player.username = data.username;
+    if (typeof data.gamesPlayed === 'number') player.gamesPlayed = data.gamesPlayed;
+    if (typeof data.gamesWon === 'number') player.gamesWon = data.gamesWon;
+
+    return this.playerRepository.save(player);
+  }
 }

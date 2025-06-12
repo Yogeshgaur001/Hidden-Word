@@ -1,5 +1,5 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
+/*const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
   server: {
@@ -8,4 +8,15 @@ const nextConfig = {
   }
 }
 
-module.exports = nextConfig
+module.exports = nextConfig*/
+
+// next.config.js (Corrected)
+
+
+const nextConfig = {
+  reactStrictMode: true,
+  // The 'swcMinify' and 'server' keys have been removed as they are
+  // either default or invalid in modern Next.js versions.
+};
+
+module.exports = nextConfig;

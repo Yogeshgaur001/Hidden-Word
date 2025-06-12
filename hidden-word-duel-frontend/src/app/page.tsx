@@ -1,145 +1,319 @@
 // src/app/page.tsx
-
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+/*import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { Socket } from 'socket.io-client';
 import { createSocket, OnlinePlayer } from '@/lib/socket';
-import { setupInviteHandlers, sendInvite } from '@/lib/gameInvites';
+import { api, Player } from '@/lib/api';
+
+// Add a flag to track if an invite dialog is currently showing
+let isShowingInvite = false;
+
+// Helper function to send invites
+const sendInvite = (
+  socket: Socket,
+  inviteeId: string,
+  setWaitingForResponse: (id: string) => void
+) => {
+  console.log('Sending invite to player:', inviteeId);
+  setWaitingForResponse(inviteeId);
+  socket.emit('invitePlayer', { inviteeId });
+};
 
 export default function HomePage() {
   const router = useRouter();
   const socketRef = useRef<Socket | null>(null);
   const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayer[]>([]);
-  const [currentPlayer, setCurrentPlayer] = useState<OnlinePlayer | null>(null);
+  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
   const [waitingForResponse, setWaitingForResponse] = useState<string | null>(null);
 
   useEffect(() => {
-    let playerId = localStorage.getItem('playerId');
-    if (!playerId) {
-      playerId = uuidv4();
-      localStorage.setItem('playerId', playerId);
-    }
+    const initializePlayer = async () => {
+      let playerId = localStorage.getItem('playerId');
+      let player: Player | null = null;
 
-    console.log('Initializing socket connection...');
-    const socket = createSocket(playerId);
-    socketRef.current = socket;
+      if (playerId) {
+        try {
+          // Try to get existing player from database
+          player = await api.getPlayer(playerId);
+        } catch (error) {
+          console.error('Error fetching player:', error);
+          // If player not found in database, remove from localStorage
+          localStorage.removeItem('playerId');
+          playerId = null;
+        }
+      }
+'use client';
 
-    socket.on('connect', () => {
-      console.log('Socket connected successfully');
-      socket.emit('playerConnected', {
-        id: playerId,
-        username: `Player_${playerId.slice(0, 4)}`
-      });
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { v4 as uuidv4 } from 'uuid';
+import { useSocket } from '@/lib/SocketProvider';
+import { api, Player } from '@/lib/api';
+import { OnlinePlayer } from '@/types/game.types';
+
+export default function HomePage() {
+  const router = useRouter();
+  const { socket, isConnected, connect } = useSocket(); // Get the new connect function
+  const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayer[]>([]);
+  const [currentPlayer, setCurrentPlayer] = useState<Player | null>(null);
+  const [waitingForResponse, setWaitingForResponse] = useState<string | null>(null);
+
+  // This effect handles player creation and socket connection
+  useEffect(() => {
+    const initializePlayer = async () => {
+      let playerId = localStorage.getItem('playerId');
+      if (!playerId) {
+        // Player does not exist, create a new one
+        playerId = uuidv4();
+        const player = await api.createPlayer(`Player_${playerId.slice(0, 4)}`, playerId);
+        localStorage.setItem('playerId', player.id);
+        setCurrentPlayer(player);
+        // **PERFORMANCE FIX**: Connect without reloading the page
+        connect(player.id); 
+        return;
+      }
+
+      // Player ID exists, fetch their data
+      try {
+        const player = await api.getPlayer(playerId);
+        setCurrentPlayer(player);
+        // If the socket isn't connected yet, connect it now
+        if (!isConnected) {
+            connect(playerId);
+        }
+      } catch (error) {
+        console.error("Player not found in DB, creating a new identity.");
+        localStorage.removeItem('playerId');
+        initializePlayer(); // Restart the process
+      }
+    };
+    initializePlayer();
+  }, [connect, isConnected]); // Depend on connect and isConnected
+
+  // This effect handles setting up socket event listeners
+  useEffect(() => {
+    if (!socket || !isConnected || !currentPlayer) return;
+
+    socket.emit('playerConnected', {
+      id: currentPlayer.id,
+      username: currentPlayer.username,
     });
 
-    socket.on('updateOnlinePlayers', (players) => {
-      console.log('Received online players:', players);
-      setOnlinePlayers(players.filter(p => p.id !== playerId));
-      const self = players.find(p => p.id === playerId);
-      if (self) setCurrentPlayer(self);
-    });
+    const onUpdatePlayers = (players: OnlinePlayer[]) => {
+      setOnlinePlayers(players.filter(p => p.id !== currentPlayer.id));
+    };
 
-    // Important: Handle game invite with proper dialog
-    socket.on('gameInvite', (data) => {
-      console.log('Received game invite from:', data.inviterUsername);
-      // Use custom confirm dialog
-      if (window.confirm(`${data.inviterUsername} has invited you to a duel! Do you accept?`)) {
-        console.log('Accepting invite from:', data.inviterId);
+    const onGameInvite = (data: { inviterId: string; inviterUsername: string }) => {
+      if (window.confirm(`${data.inviterUsername} has invited you! Accept?`)) {
         socket.emit('acceptInvite', { inviterId: data.inviterId });
       } else {
-        console.log('Declining invite from:', data.inviterId);
         socket.emit('declineInvite', { inviterId: data.inviterId });
       }
-    });
+    };
 
-    socket.on('inviteSuccess', async (data) => {
+    const onInviteAccepted = (data: { message: string }) => {
+      alert(data.message);
       setWaitingForResponse(null);
-      try {
-        await new Promise(resolve => setTimeout(resolve, 100)); // Small delay
-        alert(data.message);
-        router.push(`/game/${data.roomId}`);
-      } catch (error) {
-        console.error('Navigation error:', error);
-      }
-    });
+    };
 
-    socket.on('inviteDeclined', (data) => {
-      setWaitingForResponse(null);
-      alert('Player declined your invitation');
-    });
+    const onNavigateToGame = (data: { roomId: string }) => {
+      router.push(`/game/${data.roomId}`);
+    };
 
-    socket.on('inviteFailed', (data) => {
+    const onInviteDeclined = (data: { message: string }) => {
       setWaitingForResponse(null);
       alert(data.message);
-    });
+    };
 
-    // Setup invite handlers
-    setupInviteHandlers(
-      socket,
-      setWaitingForResponse,
-      (roomId) => router.push(`/game/${roomId}`)
-    );
-
-    socket.connect();
+    socket.on('updateOnlinePlayers', onUpdatePlayers);
+    socket.on('gameInvite', onGameInvite);
+    socket.on('inviteAccepted', onInviteAccepted);
+    socket.on('navigateToGame', onNavigateToGame);
+    socket.on('inviteDeclined', onInviteDeclined);
 
     return () => {
-      socket.disconnect();
-      socketRef.current = null;
+      socket.off('updateOnlinePlayers', onUpdatePlayers);
+      socket.off('gameInvite', onGameInvite);
+      socket.off('inviteAccepted', onInviteAccepted);
+      socket.off('navigateToGame', onNavigateToGame);
+      socket.off('inviteDeclined', onInviteDeclined);
     };
-  }, [router]);
+  }, [socket, isConnected, router, currentPlayer]);
 
   const handleInvite = (inviteeId: string) => {
-    if (socketRef.current) {
-      sendInvite(socketRef.current, inviteeId, setWaitingForResponse);
-    }
+    if (!socket) return;
+    setWaitingForResponse(inviteeId);
+    socket.emit('invitePlayer', { inviteeId });
+
+    // Robustness: Re-enable the button after 20 seconds if no response
+    setTimeout(() => {
+        setWaitingForResponse(currentId => currentId === inviteeId ? null : currentId);
+    }, 20000);
   };
+
+  if (!currentPlayer) {
+      return <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white">Loading Player...</div>
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center p-12 md:p-24 bg-gray-900 text-white">
-      <div className="w-full max-w-5xl items-center justify-between font-mono text-sm flex">
-        <h1 className="text-xl font-bold">Hidden Word Duel Lobby</h1>
-        <div className="text-right">
-          {currentPlayer ? (
-            <span className="text-green-400">Welcome, {currentPlayer.username}</span>
+      <div className="w-full max-w-5xl">
+        <h1 className="text-3xl font-bold mb-8">Hidden Word Duel</h1>
+        <div className="mb-8">
+          <h2 className="text-xl mb-4">Your Profile</h2>
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p>Username: {currentPlayer.username}</p>
+          </div>
+        </div>
+        <div className="mb-8">
+          <h2 className="text-xl mb-4">Online Players</h2>
+          {!isConnected ? <p>Connecting to server...</p> : onlinePlayers.length === 0 ? (
+            <p className="text-gray-400">No other players online</p>
           ) : (
-            <span className="text-yellow-400">Connecting...</span>
+            <div className="grid gap-4">
+              {onlinePlayers.map((player) => (
+                <div key={player.id} className="flex items-center justify-between bg-gray-800 p-4 rounded-lg">
+                  <span>{player.username}</span>
+                  <button
+                    onClick={() => handleInvite(player.id)}
+                    // **BUG FIX**: Disable only the specific button that was clicked
+                    disabled={waitingForResponse === player.id}
+                    className="px-4 py-2 bg-yellow-500 text-black rounded hover:bg-yellow-400 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {waitingForResponse === player.id ? 'Waiting...' : 'Challenge'}
+                  </button>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>
+    </main>
+  );
+}*/
 
-      <div className="mt-16 w-full max-w-2xl">
-        <h2 className="text-2xl font-semibold mb-4 text-center">Players Online</h2>
-        <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 min-h-[200px]">
-          {onlinePlayers.length > 0 ? (
-            <ul className="space-y-3">
+
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { v4 as uuidv4 } from 'uuid';
+import { useSocket } from '@/lib/SocketProvider';
+import { OnlinePlayer } from '@/types/game.types';
+
+export default function HomePage() {
+  const router = useRouter();
+  const { socket, isConnected, connect } = useSocket();
+  const [onlinePlayers, setOnlinePlayers] = useState<OnlinePlayer[]>([]);
+  const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
+  const [username, setUsername] = useState<string | null>(null);
+  const [waitingForResponse, setWaitingForResponse] = useState<string | null>(null);
+
+  // This effect runs once to establish player identity
+  useEffect(() => {
+    let pid = localStorage.getItem('playerId');
+    let uname = localStorage.getItem('username');
+
+    if (!pid || !uname) {
+      pid = uuidv4();
+      uname = `Player_${pid.slice(0, 4)}`;
+      localStorage.setItem('playerId', pid);
+      localStorage.setItem('username', uname);
+    }
+    
+    setCurrentPlayerId(pid);
+    setUsername(uname);
+    
+    // Connect with the established identity if not already connected
+    if (!isConnected) {
+      connect(pid, uname);
+    }
+  }, [connect, isConnected]);
+
+  // This effect sets up event listeners and announces connection
+  useEffect(() => {
+    // Wait until the socket is connected and we have the player's info
+    if (!socket || !isConnected || !currentPlayerId || !username) return;
+
+    // --- THIS IS THE FIX FOR THE RACE CONDITION ---
+    // Announce connection AFTER listeners are ready to be attached.
+    console.log(`Announcing connection for ${username}`);
+    socket.emit('playerConnected', { id: currentPlayerId, username });
+
+    // Define listeners
+    const onUpdatePlayers = (players: OnlinePlayer[]) => {
+      console.log('Received online players update:', players);
+      setOnlinePlayers(players.filter(p => p.id !== currentPlayerId));
+    };
+
+    const onGameInvite = (data: { inviterId: string; inviterUsername: string }) => {
+      if (window.confirm(`${data.inviterUsername} has invited you to a duel!`)) {
+        socket.emit('acceptInvite', { inviterId: data.inviterId });
+      }
+    };
+
+    const onInviteAccepted = (data: { message: string }) => {
+      alert(data.message);
+      setWaitingForResponse(null);
+    };
+
+    const onNavigateToGame = (data: { roomId: string }) => {
+      router.push(`/game/${data.roomId}`);
+    };
+
+    // Attach listeners
+    socket.on('updateOnlinePlayers', onUpdatePlayers);
+    socket.on('gameInvite', onGameInvite);
+    socket.on('inviteAccepted', onInviteAccepted);
+    socket.on('navigateToGame', onNavigateToGame);
+
+    // Cleanup function to remove listeners
+    return () => {
+      socket.off('updateOnlinePlayers', onUpdatePlayers);
+      socket.off('gameInvite', onGameInvite);
+      socket.off('inviteAccepted', onInviteAccepted);
+      socket.off('navigateToGame', onNavigateToGame);
+    };
+  }, [socket, isConnected, router, currentPlayerId, username]);
+
+  const handleInvite = (inviteeId: string) => {
+    if (!socket) return;
+    setWaitingForResponse(inviteeId);
+    socket.emit('invitePlayer', { inviteeId });
+  };
+  
+  if (!username) return <div className="flex min-h-screen items-center justify-center bg-gray-900 text-white">Initializing...</div>
+
+  return (
+    <main className="flex min-h-screen flex-col items-center p-12 md:p-24 bg-gray-900 text-white">
+      <div className="w-full max-w-5xl">
+        <h1 className="text-3xl font-bold mb-8">Hidden Word Duel</h1>
+        <div className="mb-8">
+          <h2 className="text-xl mb-4">Your Profile</h2>
+          <div className="bg-gray-800 p-4 rounded-lg">
+            <p>Username: {username}</p>
+          </div>
+        </div>
+        <div className="mb-8">
+          <h2 className="text-xl mb-4">Online Players</h2>
+          {!isConnected ? <p>Connecting...</p> : onlinePlayers.length === 0 ? (
+            <p className="text-gray-400">Waiting for other players...</p>
+          ) : (
+            <div className="grid gap-4">
               {onlinePlayers.map((player) => (
-                <li key={player.id} className="flex items-center justify-between p-3 bg-gray-700 rounded-md">
-                  <div className="flex items-center">
-                    <span className="relative flex h-3 w-3 mr-3">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-green-500"></span>
-                    </span>
-                    <span>{player.username}</span>
-                  </div>
+                <div key={player.id} className="flex items-center justify-between bg-gray-800 p-4 rounded-lg">
+                  <span>{player.username}</span>
                   <button
                     onClick={() => handleInvite(player.id)}
                     disabled={waitingForResponse === player.id}
-                    className={`px-4 py-1 text-sm font-semibold text-white rounded-full transition-colors ${
-                      waitingForResponse === player.id 
-                        ? 'bg-gray-600 cursor-not-allowed' 
-                        : 'bg-blue-600 hover:bg-blue-700'
-                    }`}
+                    className="px-4 py-2 bg-yellow-500 text-black rounded hover:bg-yellow-400 disabled:opacity-50"
                   >
-                    {waitingForResponse === player.id ? 'Waiting...' : 'Invite to Duel'}
+                    {waitingForResponse === player.id ? 'Waiting...' : 'Challenge'}
                   </button>
-                </li>
+                </div>
               ))}
-            </ul>
-          ) : (
-            <p className="text-center text-gray-400">No other players online</p>
+            </div>
           )}
         </div>
       </div>

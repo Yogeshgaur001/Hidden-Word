@@ -1,15 +1,43 @@
-
 import { Socket } from 'socket.io-client';
-import { ServerToClientEvents, ClientToServerEvents } from './socket';
+
+interface ServerToClientEvents {
+  gameInvite: (data: { inviterId: string; inviterUsername: string }) => void;
+  inviteSuccess: (data: { message: string; roomId: string }) => void;
+  inviteDeclined: (data: { message: string }) => void;
+  inviteFailed: (data: { message: string }) => void;
+}
+
+interface ClientToServerEvents {
+  invitePlayer: (data: { inviteeId: string }) => void;
+  acceptInvite: (data: { inviterId: string }) => void;
+  declineInvite: (data: { inviterId: string }) => void;
+}
+
+// Track if we've already shown an invite for this session
+let activeInvite = false;
 
 export const setupInviteHandlers = (
   socket: Socket<ServerToClientEvents, ClientToServerEvents>,
   setWaitingForResponse: (id: string | null) => void,
   onInviteSuccess: (roomId: string) => void
 ) => {
+  // Remove any existing listeners first
+  socket.off('gameInvite');
+  socket.off('inviteSuccess');
+  socket.off('inviteDeclined');
+  socket.off('inviteFailed');
+
   // Handle receiving game invite
-  socket.on('gameInvite', (data) => {
+  socket.on('gameInvite', (data: { inviterId: string; inviterUsername: string }) => {
     console.log('Received game invite from:', data.inviterUsername);
+    
+    // Prevent multiple alerts for the same invite
+    if (activeInvite) {
+      console.log('Already showing an invite dialog');
+      return;
+    }
+    
+    activeInvite = true;
     
     // Show confirmation dialog in a setTimeout to ensure it's not blocked
     setTimeout(() => {
@@ -24,28 +52,31 @@ export const setupInviteHandlers = (
         console.log('Declining invite from:', data.inviterId);
         socket.emit('declineInvite', { inviterId: data.inviterId });
       }
+      activeInvite = false;
     }, 100);
   });
 
   // Handle successful invite
-  socket.on('inviteSuccess', (data) => {
+  socket.on('inviteSuccess', (data: { message: string; roomId: string }) => {
     console.log('Invite successful:', data);
     setWaitingForResponse(null);
-    alert(data.message);
+    activeInvite = false;
     onInviteSuccess(data.roomId);
   });
 
   // Handle declined invite
-  socket.on('inviteDeclined', (data) => {
+  socket.on('inviteDeclined', (data: { message: string }) => {
     console.log('Invite declined');
     setWaitingForResponse(null);
+    activeInvite = false;
     alert('Player declined your invitation');
   });
 
   // Handle failed invite
-  socket.on('inviteFailed', (data) => {
+  socket.on('inviteFailed', (data: { message: string }) => {
     console.log('Invite failed:', data.message);
     setWaitingForResponse(null);
+    activeInvite = false;
     alert(data.message);
   });
 };
@@ -55,7 +86,12 @@ export const sendInvite = (
   inviteeId: string,
   setWaitingForResponse: (id: string) => void
 ) => {
+  if (activeInvite) {
+    console.log('An invite is already active');
+    return;
+  }
   console.log('Sending invite to player:', inviteeId);
   setWaitingForResponse(inviteeId);
+  activeInvite = true;
   socket.emit('invitePlayer', { inviteeId });
 };

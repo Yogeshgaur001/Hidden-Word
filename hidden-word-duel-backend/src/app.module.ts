@@ -6,6 +6,9 @@ import { AppService } from './app.service';
 import { LobbyModule } from './lobby/lobby.module';
 import { GameModule } from './game/game.module';
 import { PlayerModule } from './player/player.module';
+import { RoundModule } from './round/round.module';
+import { GuessModule } from './guess/guess.module';
+import { WordModule } from './word/word.module';
 
 @Module({
   imports: [
@@ -22,6 +25,9 @@ import { PlayerModule } from './player/player.module';
     }),
     LobbyModule,
     GameModule,
+    WordModule,
+    RoundModule,
+    GuessModule, 
     PlayerModule
   ],
   controllers: [AppController],

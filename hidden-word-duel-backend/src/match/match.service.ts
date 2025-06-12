@@ -6,7 +6,7 @@ import { Match } from './entities/match.entity';
 interface CreateMatchDto {
   player1Id: string;
   player2Id: string;
-  status: string;
+  status: 'ongoing' | 'completed';
 }
 
 @Injectable()
@@ -28,7 +28,7 @@ export class MatchService {
     });
   }
 
-  async updateStatus(id: string, status: string): Promise<Match | null> {
+  async updateStatus(id: string, status: 'ongoing' | 'completed'): Promise<Match | null> {
     const match = await this.findOne(id);
     if (!match) return null;
 
@@ -48,7 +48,7 @@ export class MatchService {
 
   async getActiveMatches(): Promise<Match[]> {
     return this.matchRepository.find({
-      where: { status: 'playing' },
+      where: { status: 'ongoing' }, // Use 'ongoing' not 'playing'
       relations: ['player1', 'player2']
     });
   }

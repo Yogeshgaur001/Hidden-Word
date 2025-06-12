@@ -1,6 +1,6 @@
 // src/player/entities/player.entity.ts
 
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
 
 @Entity()
 export class Player {
@@ -11,8 +11,8 @@ export class Player {
   username: string;
 
   @Column({ default: 0 })
-  gamesPlayed: number;
+  totalWins: number;
 
-  @Column({ default: 0 })
-  gamesWon: number;
+  @CreateDateColumn()
+  createdAt: Date;
 }

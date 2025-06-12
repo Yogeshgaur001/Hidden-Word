@@ -1,4 +1,4 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, UpdateDateColumn, JoinColumn } from 'typeorm';
 import { Player } from '../../player/entities/player.entity';
 
 @Entity()
@@ -6,26 +6,32 @@ export class Match {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
+  @Column('uuid')
+  player1Id: string;
+
+  @Column('uuid')
+  player2Id: string;
+
   @ManyToOne(() => Player)
   @JoinColumn({ name: 'player1Id' })
   player1: Player;
-
-  @Column()
-  player1Id: string;
 
   @ManyToOne(() => Player)
   @JoinColumn({ name: 'player2Id' })
   player2: Player;
 
-  @Column()
-  player2Id: string;
+  @Column({ default: 0 })
+  score1: number;
 
-  @Column()
-  status: string;
+  @Column({ default: 0 })
+  score2: number;
 
-  @Column({ type: 'timestamp', default: () => 'CURRENT_TIMESTAMP' })
+  @Column({ type: 'text', default: 'ongoing' })
+  status: 'ongoing' | 'completed';
+
+  @CreateDateColumn()
   createdAt: Date;
 
-  @Column({ type: 'timestamp', nullable: true })
-  finishedAt: Date;
+  @UpdateDateColumn()
+  updatedAt: Date;
 }

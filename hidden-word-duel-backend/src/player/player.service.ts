@@ -47,8 +47,7 @@ export class PlayerService {
     const player = await this.findOne(id);
     if (!player) return null;
 
-    player.gamesPlayed++;
-    if (won) player.gamesWon++;
+    if (won) player.totalWins++;
 
     return this.playerRepository.save(player);
   }
@@ -59,8 +58,7 @@ export class PlayerService {
 
     // Update allowed fields
     if (data.username) player.username = data.username;
-    if (typeof data.gamesPlayed === 'number') player.gamesPlayed = data.gamesPlayed;
-    if (typeof data.gamesWon === 'number') player.gamesWon = data.gamesWon;
+    if (typeof data.totalWins === 'number') player.totalWins = data.totalWins;
 
     return this.playerRepository.save(player);
   }

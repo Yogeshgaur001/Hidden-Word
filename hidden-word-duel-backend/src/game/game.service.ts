@@ -89,7 +89,15 @@ export class GameService {
       }
     };
     
-    this.server.to(roomId).emit('matchOver', results);
+    // --- MODIFIED LINE ---
+    // Emitting the matchOver event with the correct structure.
+    this.server.to(roomId).emit('matchOver', {
+      winnerId: winnerId || null,
+      scores: {
+        [gameState.player1Id]: player1.roundsWon,
+        [gameState.player2Id]: player2.roundsWon,
+      }
+    });
     this.cleanupGame(roomId);
   }
 

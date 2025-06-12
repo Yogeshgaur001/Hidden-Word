@@ -13,7 +13,9 @@ interface RoundState {
 
 interface MatchResults {
   winnerId: string | null;
-  scores: { [playerId: string]: number };
+  scores: {
+    [playerId: string]: number;
+  };
 }
 
 export default function GamePlay() {
@@ -62,7 +64,9 @@ export default function GamePlay() {
     }
 
     const onMatchOver = (data: MatchResults) => {
+      // Store the results in sessionStorage before navigation
       sessionStorage.setItem('matchResults', JSON.stringify(data));
+      // Navigate to the summary page
       router.push(`/game/${roomId}/summary`);
     };
 
@@ -134,4 +138,4 @@ export default function GamePlay() {
       </div>
     </div>
   );
-}s
+}

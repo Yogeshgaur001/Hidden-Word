@@ -79,26 +79,53 @@ export default function GameRoom() {
   const canStartGame = gameRoom.status !== 'playing';
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-12 md:p-24 bg-gray-900 text-white">
-      <div className="w-full max-w-5xl">
-        <h1 className="text-3xl font-bold mb-8">Game Room</h1>
-        <div className="bg-gray-800 p-6 rounded-lg mb-8">
-          <h2 className="text-xl mb-4">Players</h2>
-          <div className="space-y-4 text-lg">
-              <p><span className="text-yellow-400 font-semibold">Player 1:</span> {gameRoom.player1.username} {gameRoom.player1.id === currentPlayerId && <span className="text-green-400">(You)</span>}</p>
-              <p><span className="text-blue-400 font-semibold">Player 2:</span> {gameRoom.player2.username} {gameRoom.player2.id === currentPlayerId && <span className="text-green-400">(You)</span>}</p>
+    <div className="min-h-screen bg-gray-900 p-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-gray-800 rounded-lg p-6 shadow-lg">
+          <h1 className="text-2xl font-bold text-white mb-4">
+            Game Room
+          </h1>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Player 1 */}
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <h2 className="text-lg font-semibold text-white mb-2">
+                Player 1
+              </h2>
+              <p><span className="text-yellow-400 font-semibold">Username:</span> {gameRoom.player1.username}</p>
+              <p><span className="text-yellow-400 font-semibold">ID:</span> {gameRoom.player1.id}</p>
+              {gameRoom.player1.id === currentPlayerId && <p className="text-green-400">(You)</p>}
+            </div>
+
+            {/* Player 2 */}
+            <div className="bg-gray-700 p-4 rounded-lg">
+              <h2 className="text-lg font-semibold text-white mb-2">
+                Player 2
+              </h2>
+              <p><span className="text-blue-400 font-semibold">Username:</span> {gameRoom.player2.username}</p>
+              <p><span className="text-blue-400 font-semibold">ID:</span> {gameRoom.player2.id}</p>
+              {gameRoom.player2.id === currentPlayerId && <p className="text-green-400">(You)</p>}
+            </div>
           </div>
+
+          {/* Game Controls */}
+          <div className="mt-6 flex gap-4 justify-center">
+            {canStartGame && (
+              <button
+                onClick={handleStartGame}
+                className="w-full py-3 bg-yellow-500 text-black rounded-lg hover:bg-yellow-400 font-bold"
+              >
+                Start Game
+              </button>
+            )}
+            <button className="w-full py-3 bg-red-500 text-white rounded-lg hover:bg-red-400 font-bold">
+              Leave Room
+            </button>
+          </div>
+
+          <div className="text-center text-xl my-4 text-gray-300">{statusText}</div>
         </div>
-        <div className="text-center text-xl my-4 text-gray-300">{statusText}</div>
-        {canStartGame && (
-          <button
-            onClick={handleStartGame}
-            className="w-full py-3 bg-yellow-500 text-black rounded-lg hover:bg-yellow-400 font-bold"
-          >
-            Start Game
-          </button>
-        )}
       </div>
-    </main>
+    </div>
   );
 }

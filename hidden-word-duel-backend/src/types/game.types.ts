@@ -1,5 +1,3 @@
-// src/types/game.types.ts (FINAL)
-
 export interface OnlinePlayer {
   id: string;
   username: string;

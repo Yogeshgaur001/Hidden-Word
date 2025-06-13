@@ -9,6 +9,11 @@ import { PlayerModule } from './player/player.module';
 import { RoundModule } from './round/round.module';
 import { GuessModule } from './guess/guess.module';
 import { WordModule } from './word/word.module';
+import { Player } from './player/entities/player.entity'; // Import the Player entity
+import { Guess } from './guess/entities/guess.entity'; // Import the Guess entity
+import { Word } from './word/entities/word.entity'; // Import the Word entity
+import { Round } from './round/entities/round.entity'; // Import the Round entity
+import { Match } from './match/entities/match.entity';
 
 @Module({
   imports: [
@@ -20,15 +25,17 @@ import { WordModule } from './word/word.module';
       username: 'postgres',
       password: 'postgres',
       database: 'hidden_word_duel_db',
-      autoLoadEntities: true,
-      synchronize: true,
+      logging: true,
+      entities: [Player, Guess, Word, Round, Match], // Add all your entities here
+      // autoLoadEntities: true,
+      // synchronize: true,
     }),
     LobbyModule,
     GameModule,
     WordModule,
     RoundModule,
-    GuessModule, 
-    PlayerModule
+    GuessModule,
+    PlayerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

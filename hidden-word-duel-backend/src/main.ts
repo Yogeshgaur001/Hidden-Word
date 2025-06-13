@@ -1,4 +1,3 @@
-// filepath: c:\Users\asus\OneDrive\Desktop\Hidden Word\hidden-word-duel-backend\src\main.ts
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { SocketIoAdapter } from './socket-io.adapter';

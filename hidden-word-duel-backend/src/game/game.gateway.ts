@@ -44,12 +44,16 @@ export class GameGateway implements OnGatewayInit { // 2. Implement the hook
 
   // 6. The 'guessWord' handler is also much simpler.
   @SubscribeMessage('guessWord')
-  handleGuessWord(
+  async handleGuessWord(
     @MessageBody() data: { roomId:string; playerId: string; word: string },
     @ConnectedSocket() client: Socket // Get the client's socket
   ){
     // We pass the unique socket ID (client.id) to the service so it can
     // send private messages (like "Incorrect guess") only to the player who guessed.
-    this.gameService.handlePlayerGuess(data.roomId, client.id, data.word);
+    try {
+      await this.gameService.handlePlayerGuess(data.roomId, client.id, data.word);
+    } catch (error) {
+      this.logger.error(`Error handling player guess:`, error);
+    }
   }
 }

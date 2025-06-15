@@ -7,6 +7,8 @@ interface CreateMatchDto {
   player1Id: string;
   player2Id: string;
   status: 'ongoing' | 'completed';
+  score1?: number;
+  score2?: number;
 }
 
 @Injectable()

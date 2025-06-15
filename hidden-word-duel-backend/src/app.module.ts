@@ -28,7 +28,7 @@ import { Match } from './match/entities/match.entity';
       logging: true,
       entities: [Player, Guess, Word, Round, Match], // Add all your entities here
       // autoLoadEntities: true,
-      // synchronize: true,
+      synchronize: true,
     }),
     LobbyModule,
     GameModule,

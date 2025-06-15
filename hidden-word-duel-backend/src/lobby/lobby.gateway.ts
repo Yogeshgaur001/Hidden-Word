@@ -12,6 +12,7 @@ import { Logger } from '@nestjs/common';
 import { v4 as uuidv4 } from 'uuid';
 import { OnlinePlayer, GameRoom, GameRoomData } from '../types/game.types'; // Ensure GameRoomData is imported
 import { GameService } from '../game/game.service';
+import { PlayerService } from '../player/player.service';
 
 @WebSocketGateway({
   cors: {
@@ -27,7 +28,10 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   private gameRooms = new Map<string, GameRoomData>(); // Store the full room data
   private onlinePlayers = new Map<string, OnlinePlayer>();
 
-  constructor(private readonly gameService: GameService) {}
+  constructor(
+    private readonly gameService: GameService,
+    private readonly playerService: PlayerService,
+  ) {}
 
   // --- No changes to handleConnection, handleDisconnect, playerConnected, invitePlayer ---
 
@@ -52,6 +56,14 @@ export class LobbyGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const player: OnlinePlayer = { id: data.id, username: data.username };
     this.onlinePlayers.set(data.id, player);
+    
+    // Save player to database
+    try {
+      await this.playerService.findOrCreate(data.id, data.username);
+    } catch (error) {
+      this.logger.error(`Failed to save player ${data.id}:`, error);
+    }
+    
     this.broadcastOnlinePlayers();
   }
 

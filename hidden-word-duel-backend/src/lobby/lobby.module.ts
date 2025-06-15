@@ -3,9 +3,10 @@
 import { Module } from '@nestjs/common';
 import { LobbyGateway } from './lobby.gateway';
 import { GameModule } from '../game/game.module';
+import { PlayerModule } from '../player/player.module';
 
 @Module({
-  imports: [GameModule],
+  imports: [GameModule, PlayerModule],
   providers: [LobbyGateway],
   exports: [LobbyGateway]
 })

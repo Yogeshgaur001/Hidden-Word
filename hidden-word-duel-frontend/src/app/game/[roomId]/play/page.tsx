@@ -31,12 +31,15 @@ export default function GamePlay() {
   const [chances, setChances] = useState(5); // Start with 5 chances
 
   useEffect(() => {
-    const storedState = sessionStorage.getItem('initialGameState');
-    if (storedState) {
-      const initialState: RoundState = JSON.parse(storedState);
-      setRoundState(initialState);
-      setFeedback({ message: initialState.message });
-      sessionStorage.removeItem('initialGameState');
+    // Check if we're in browser environment before accessing localStorage
+    if (typeof window !== 'undefined') {
+      const storedState = localStorage.getItem('initialGameState');
+      if (storedState) {
+        const initialState: RoundState = JSON.parse(storedState);
+        setRoundState(initialState);
+        setFeedback({ message: initialState.message });
+        sessionStorage.removeItem('initialGameState');
+      }
     }
 
     if (!socket) return;
@@ -65,7 +68,9 @@ export default function GamePlay() {
 
     const onMatchOver = (data: MatchResults) => {
       // Store the results in sessionStorage before navigation
-      sessionStorage.setItem('matchResults', JSON.stringify(data));
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('matchResults', JSON.stringify(data));
+      }
       // Navigate to the summary page
       router.push(`/game/${roomId}/summary`);
     };
@@ -87,6 +92,8 @@ export default function GamePlay() {
 
   const handleWordSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (typeof window === 'undefined') return;
+    
     const playerId = localStorage.getItem('playerId');
     if (!socket || !guess.trim() || !playerId || chances <= 0) return;
     socket.emit('guessWord', { roomId, playerId, word: guess });

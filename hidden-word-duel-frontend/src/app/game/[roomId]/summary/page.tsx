@@ -23,6 +23,11 @@ export default function GameSummary() {
   const [displayResults, setDisplayResults] = useState<DisplayResults | null>(null);
 
   useEffect(() => {
+    // Check if we're in browser environment before accessing storage APIs
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     // We now read from 'sessionStorage' as set by the play page
     const storedResults = sessionStorage.getItem('matchResults');
     const currentPlayerId = localStorage.getItem('playerId');

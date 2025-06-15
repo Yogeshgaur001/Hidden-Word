@@ -32,7 +32,11 @@ export default function GameRoom() {
   const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
 
   useEffect(() => {
-    setCurrentPlayerId(localStorage.getItem('playerId'));
+    // Check if we're in browser environment before accessing localStorage
+    if (typeof window !== 'undefined') {
+      setCurrentPlayerId(localStorage.getItem('playerId'));
+    }
+    
     if (!socket || !roomId) return;
     
     socket.emit('getRoomData', { roomId });

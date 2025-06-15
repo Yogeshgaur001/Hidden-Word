@@ -5,7 +5,11 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import { useSocket } from '@/lib/SocketProvider';
-import { OnlinePlayer } from '@/types/game.types';
+
+interface OnlinePlayer {
+  id: string;
+  username: string;
+}
 
 export default function HomePage() {
   const router = useRouter();
@@ -17,8 +21,15 @@ export default function HomePage() {
 
   // This effect runs once to establish player identity
   useEffect(() => {
+    // Check if we're in browser environment before accessing localStorage
+    if (typeof window === 'undefined') {
+      return;
+    }
+
     let pid = localStorage.getItem('playerId');
+    //console.log(`Retrieved playerId from localStorage: ${pid}`);
     let uname = localStorage.getItem('username');
+    //console.log(`Retrieved username from localStorage: ${uname}`);
 
     if (!pid || !uname) {
       pid = uuidv4();
